@@ -94,9 +94,13 @@ Router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    const token = jwt.sign({ userId: user._id }, "secret-key", {
-      expiresIn: "24h",
-    });
+    const token = jwt.sign(
+      { userId: user._id, email: user.email, username: user.username },
+      "secret-key",
+      {
+        expiresIn: "24h",
+      }
+    );
 
     console.log("/login - user logged in successfully");
 
@@ -123,6 +127,8 @@ Router.post(
         user: [
           {
             userId: req?.user?.userId,
+            email: req?.user?.email,
+            username: req?.user?.username,
             isAdmin: true,
           },
         ],
@@ -135,7 +141,10 @@ Router.post(
 
       // Process the uploaded file
 
-      res.json({ message: "File uploaded successfully" });
+      res.json({
+        message: "File uploaded successfully",
+        filePath: req.file.path,
+      });
     } catch (error) {
       console.log("error", error);
       res.status(400).json({ error: error });
@@ -155,12 +164,12 @@ Router.post("/access", authorize, async (req, res) => {
           user.isAdmin && ObjectId.isValid(userId) && user.userId.equals(userId)
       );
       if (!isAdminAccessAvailableToLoggedInUser) {
-        res.status(400).json({ error: "You don't have access to this file" });
+        res.status(400).json({ message: "You don't have access to this file" });
       }
 
       const exisitingUser = await Users.findOne({ email });
       if (!exisitingUser)
-        res.status(400).json({ error: "User does not exists" });
+        res.status(400).json({ message: "User does not exists" });
 
       const isUserPresentAlready = existingFile.user.some((user) =>
         user.userId.equals(exisitingUser._id)
@@ -169,10 +178,12 @@ Router.post("/access", authorize, async (req, res) => {
       if (isUserPresentAlready)
         res
           .status(400)
-          .json({ error: "User already have access to this file" });
+          .json({ message: "User already have access to this file" });
 
       let payload = {
         userId: exisitingUser._id,
+        email: exisitingUser.email,
+        username: exisitingUser.username,
         isAdmin: false,
       };
 
@@ -186,13 +197,25 @@ Router.post("/access", authorize, async (req, res) => {
     }
   } catch (err) {
     console.log(err);
-    res.status(400).json({ error });
+    res.status(400).json({ err });
   }
 });
 
-Router.get("/uploads/:filename", (req, res) => {
+Router.get("/uploads/:filename", authorize, async (req, res) => {
   const filename = req.params.filename;
   const filePath = path.join(__dirname, "uploads", filename);
+  console.log(" inside");
+
+  const existingFile = await Files.findOne({ name: filename });
+  if (!existingFile) res.status(400).json({ message: "File doesn't exitings" });
+
+  const isPermAvailable = existingFile.user.some(
+    (user) =>
+      ObjectId.isValid(req.user.userId) && user.userId.equals(req.user.userId)
+  );
+
+  if (!isPermAvailable)
+    res.status(400).json({ message: "You don't have access to this file" });
 
   // Check if the file exists
   if (fs.existsSync(filePath)) {
@@ -205,7 +228,7 @@ Router.get("/uploads/:filename", (req, res) => {
 });
 
 Router.post("/comments", authorize, async (req, res) => {
-  const { userId } = req.user;
+  const { userId, username } = req.user;
   const { fileId, comment } = req.body;
 
   try {
@@ -223,19 +246,48 @@ Router.post("/comments", authorize, async (req, res) => {
     let payload = {
       text: comment,
       ownerId: userId,
+      username: username,
       fileId: fileId,
     };
 
     const comments = new Comments(payload);
     await comments.save();
     console.log("comment saved successfully");
-    res.status(400).json({ message: "Comment Added successfully" });
+    res.status(200).json({ message: "Comment Added successfully" });
   } catch (error) {
     res.status(400).json({ message: error });
   }
 });
 
 module.exports = Router;
+
+Router.get("/listings", authorize, async (req, res) => {
+  const { userId } = req.user;
+
+  try {
+    const listings = await Files.aggregate([
+      {
+        $match: { "user.userId": new ObjectId(userId) },
+      },
+      {
+        $lookup: {
+          from: "comments", // The name of the comments collection
+          localField: "_id",
+          foreignField: "fileId",
+          as: "comments",
+        },
+      },
+    ]);
+
+    console.log(listings);
+
+    res.status(200).json({ listings });
+    console.log({ listings });
+  } catch (error) {
+    console.log("Error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 // Get All listing
 // LoggedInUser -> userId

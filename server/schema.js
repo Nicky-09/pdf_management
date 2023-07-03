@@ -19,6 +19,8 @@ const File = mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
         },
+        email: String,
+        username: String,
         isAdmin: Boolean,
       },
     ],
@@ -37,6 +39,7 @@ const Comment = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "File",
     },
+    username: String,
   },
   { timestamps: true }
 );
