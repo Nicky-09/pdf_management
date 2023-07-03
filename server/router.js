@@ -54,7 +54,7 @@ const authorize = (req, res, next) => {
 };
 
 Router.post("/signup", async (req, res) => {
-  const { name, email, password } = req.body;
+  const { username, email, password } = req.body;
 
   try {
     const existingUser = await Users.findOne({ email });
@@ -62,16 +62,20 @@ Router.post("/signup", async (req, res) => {
       return res.status(409).json({ error: "Email already exists" });
     }
 
+    if (!password) {
+      return res.status(400).json({ error: "Password is required" });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new Users({ name, email, password: hashedPassword });
+    const user = new Users({ username, email, password: hashedPassword });
     await user.save();
 
-    console.log("/signup - User created successfull");
+    console.log("/signup - User created successfully");
     res
       .status(201)
       .json({ message: "User created successfully", success: true });
   } catch (error) {
-    console.log("/signup - error ", error);
+    console.log("/signup - error", error);
     res.status(500).json({ error: "Internal server error", success: false });
   }
 });
