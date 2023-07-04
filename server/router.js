@@ -164,21 +164,23 @@ Router.post("/access", authorize, async (req, res) => {
           user.isAdmin && ObjectId.isValid(userId) && user.userId.equals(userId)
       );
       if (!isAdminAccessAvailableToLoggedInUser) {
-        res.status(400).json({ message: "You don't have access to this file" });
+        return res
+          .status(400)
+          .json({ message: "You don't have access to this file" });
       }
 
       const exisitingUser = await Users.findOne({ email });
       if (!exisitingUser)
-        res.status(400).json({ message: "User does not exists" });
+        return res.status(400).json({ message: "User does not exist" });
 
       const isUserPresentAlready = existingFile.user.some((user) =>
         user.userId.equals(exisitingUser._id)
       );
 
       if (isUserPresentAlready)
-        res
+        return res
           .status(400)
-          .json({ message: "User already have access to this file" });
+          .json({ message: "User already has access to this file" });
 
       let payload = {
         userId: exisitingUser._id,
@@ -189,15 +191,14 @@ Router.post("/access", authorize, async (req, res) => {
 
       existingFile.user.push(payload);
       await existingFile.save();
-      console.log("file Saved Successfully");
 
-      res.status(200).json({ message: "File Saved Successfully" });
+      return res.status(200).json({ message: "File Shared Successfully" });
     } else {
-      res.status(404).json({ error: "File Not Found" });
+      return res.status(404).json({ error: "File Not Found" });
     }
   } catch (err) {
     console.log(err);
-    res.status(400).json({ err });
+    return res.status(400).json({ error: err.message });
   }
 });
 
@@ -288,21 +289,3 @@ Router.get("/listings", authorize, async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-
-// Get All listing
-// LoggedInUser -> userId
-// Check krna pdega sare sare files me kis kis me vo user ke array me present hai vo return krna hai.
-
-//[FileId] aa gaaye sare upr
-// now with FileId search all comments for that fileId
-
-//
-// +
-
-// {
-//   fileId: name: path: isAdminAccess: comments: [
-//     {
-//       text: "",
-//     },
-//   ];
-// }
